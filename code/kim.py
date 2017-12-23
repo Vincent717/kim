@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 
+
 # date  : 2017.12.22
 
 """
@@ -11,39 +12,6 @@ from mxnet import nd
 from mxnet import gluon
 from mxnet.gluon import nn, rnn
 
-def conv_block(channels):
-    out = nn.Sequential()
-    out.add(
-        nn.BatchNorm(),
-        nn.Activation('relu'),
-        nn.Conv2D(channels, kernel_size=3, padding=1)
-    )
-    return out
-
-class DenseBlock(nn.Block):
-    def __init__(self, layers, growth_rate, **kwargs):
-        super(DenseBlock, self).__init__(**kwargs)
-        self.net = nn.Sequential()
-        for i in range(layers):
-            self.net.add(conv_block(growth_rate))
-
-    def forward(self, x):
-        for layer in self.net:
-            out = layer(x)
-            x = nd.concat(x, out, dim=1)
-        return x
-
-"""
-embedding: 
-class mxnet.gluon.nn.Embedding(input_dim, output_dim, dtype='float32', weight_initializer=None, **kwargs)[source]
-Turns non-negative integers (indexes/tokens) into dense vectors of fixed size. eg. [[4], [20]] -> [[0.25, 0.1], [0.6, -0.2]]
-
-Parameters: 
-input_dim (int) – Size of the vocabulary, i.e. maximum integer index + 1.
-output_dim (int) – Dimension of the dense embedding.
-dtype (str or np.dtype, default 'float32') – Data type of output embeddings.
-weight_initializer (Initializer) – Initializer for the embeddings matrix.
-"""
 
 # class KnowledgeEnrichedCoAttention(nn.Block):
 #     def __init__(self, **kwargs):
@@ -130,6 +98,7 @@ class Kim(nn.Block):
         out = slef.inference_composition(am, bm, alpha, beta, r)
         return out
 
-
+def get_kim_model(**kwargs):
+    kim(**kwargs)
 
 
