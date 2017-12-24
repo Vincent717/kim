@@ -14,6 +14,8 @@ import random
 import collections
 import re
 import numpy as np
+from mxnet import nd
+
 
 
 
@@ -26,7 +28,7 @@ LABEL_MAP = {
 }
 
 def load_data(data_path, snli=True, is_pure=True):
-	dataset = load_nli_data(data_path, snli=snli)
+    dataset = load_nli_data(data_path, snli=snli)
     if is_pure:
         i2w, w2i = sentences_to_padded_index_sequences([dataset])
         dataset = get_pure_data(dataset)
@@ -178,7 +180,7 @@ def sentences_to_padded_index_sequences(datasets):
     return indices_to_words, word_indices  #, char_indices, indices_to_char
 
 
-def sentences_to_padded_sequences(datasets):
+def sentences_to_padded_sequences(dataset):
     """
     Annotate datasets with feature vectors. Adding right-sided padding. 
     """
@@ -187,25 +189,24 @@ def sentences_to_padded_sequences(datasets):
         string = re.sub(r'\(|\)', '', string)
         return string.split()
 
-    for i, dataset in enumerate(datasets):
-        for example in tqdm(dataset):
-            for sentence in ['sentence1_binary_parse', 'sentence2_binary_parse']:
-                token_sequence = tokenize(example[sentence])
-                example[sentence + '_sequence'] = token_sequence
-                padding = universal_config["seq_length"] - len(token_sequence)
-                example[sentence + '_sequence'] += [PADDING] * padding
+    for example in tqdm(dataset):
+        for sentence in ['sentence1_binary_parse', 'sentence2_binary_parse']:
+            token_sequence = tokenize(example[sentence])
+            example[sentence + '_sequence'] = token_sequence
+            padding = universal_config["seq_length"] - len(token_sequence)
+            example[sentence + '_sequence'] += [PADDING] * padding
 
 
 def get_pure_data(dataset):
     X = []
     y = []
     for doc in tqdm(dataset):
-        ab = [doc.get('sentence1_index_sequence', nd.zeros(universal_config['seq_length'])))
-             ,doc.get('sentence2_index_sequence', nd.zeros(universal_config['seq_length'])))
+        ab = [doc.get('sentence1_index_sequence', [0] * universal_config['seq_length'])
+             ,doc.get('sentence2_index_sequence', [0] * universal_config['seq_length'])
             ]
         X.append(ab)
-        y.append(doc.get('label'), -1)
-    return X, y
+        y.append(doc.get('label', -1))
+    return nd.array(X), nd.array(y)
 
 def map_to_index(dataset, w2i):
     s2is = lambda s: [w2i.get(i,w2i.get(PADDING)) for i in s]
@@ -217,8 +218,8 @@ def map_to_index(dataset, w2i):
               s2is(doc.get('sentence2_sequence', '')),
             ]
         X.append(ab)
-        y.append(doc.get('label'), -1)
-    return X, y
+        y.append(doc.get('label', -1))
+    return nd.array(X), nd.array(y)
 
 
 if __name__ == '__main__':

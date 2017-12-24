@@ -20,6 +20,9 @@ from mxnet.gluon import nn, rnn
 #         with self.name_scope():
 #             self.attention_h = nn.soft
 
+def get_co_attention(k_lambda):
+    def 
+
 class InferenceComposition(nn.Block):
     def __init__(self, **kwargs):
         super(InferenceComposition, self).__init__(**kwargs)
@@ -57,11 +60,20 @@ class InferenceComposition(nn.Block):
 
 
 class Kim(nn.Block):
-    def __init__(self, vocab_size, embed_size, encode_hidden_size, encode_dropout, 
-        k_lambda, local_infer_dense_size, pool_size, strides, weight_pool_dense_size,
-        verbose=False, **kwargs):
+    def __init__(self, params, verbose=False, **kwargs):
         super(Kim, self).__init__(**kwargs)
         self.verbose = verbose
+
+        vocab_size = params['vocab_size'] 
+        embed_size = params['embed_size']
+        encode_hidden_size = params['encode_hidden_size']
+        encode_dropout  = params['encode_dropout']
+        k_lambda = params['k_lambda']
+        local_infer_dense_size = params['local_infer_dense_size']
+        pool_size = params['pool_size']
+        strides = params['strides']
+        weight_pool_dense_size = params['weight_pool_dense_size']
+
         with self.name_scope():
             # first block: input_encoding
             self.input_encoding_layer_a = nn.Sequential()
@@ -99,7 +111,7 @@ class Kim(nn.Block):
         out = slef.inference_composition(am, bm, alpha, beta, r)
         return out
 
-def get_kim_model(**kwargs):
-    kim(**kwargs)
+def get_kim_model(params, **kwargs):
+    Kim(params, **kwargs)
 
 

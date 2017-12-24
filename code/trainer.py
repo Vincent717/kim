@@ -19,6 +19,7 @@ import utils
 
 
 def train(params_index=0):
+	print('start training')
 	# loda params
 	train_data_path = conf_params[params_index]['train_data_path']
 	test_data_path = conf_params[params_index]['test_data_path']
@@ -26,19 +27,26 @@ def train(params_index=0):
 	lr = conf_params[params_index]['lr']
 	batch_size = conf_params[params_index]['batch_size']
 	epoches = conf_params[params_index]['epoch']
-	params = conf_params['params_index']['params']
+	params = conf_params[params_index]['params']
 
 	# load data
+	print('try to load data...')
 	train_data, i2w, w2i = load_data(train_data_path)
 	test_data = load_data(test_data_path, is_pure=False)
 	test_data = map_to_index(test_data, w2i)
 
-	train_data, test_data = utils.DataLoader(train_data, test_data)
+	train_data = utils.DataLoader(train_data, batch_size)
+	test_data = utils.DataLoader(test_data, batch_size)
+	print('data loaded!', len(train_data), len(test_data))
 
+	print('try to initialize model...')
+	net = get_kim_model(params)
+	net.initialize()
 	softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
 	trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': lr})
-	net = get_kim_model()
+	print('model initialized!', net)
 
+	print('start training...')
 	for epoch in range(epoches):
 	    train_loss = 0.
 	    train_acc = 0.
@@ -56,13 +64,14 @@ def train(params_index=0):
 	    print("Epoch %d. Loss: %f, Train acc %f, Test acc %f" % (
 	        epoch, train_loss/len(train_data), train_acc/len(train_data), test_acc))
 	# save model
+	print('finish train')
 	net.save_params(save_model_path)
 
 
-def main(data_path, save_model_path, params_index):
-	train(data_path, save_model_path, params_index)
+def main(params_index):
+	train(params_index)
 
 
 
 if __name__ == '__main__':
-	main('')
+	main(0)

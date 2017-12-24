@@ -19,13 +19,13 @@ universal_config = {
 }
 
 # paper params
-conf_params[1] = {
+conf_params[0] = {
 	'lr': 0.0004,
 	'batch_size': 32,
 	'dropout': 0.5,
-	'epoch': 500,
-	'train_data_path': '../data/snli_1.0/snli_1.0/snli_1.0_fake_train.jsonl',
-	'test_data_path': '../data/snli_1.0/snli_1.0/snli_1.0_fake_train.jsonl',
+	'epoch': 5,
+	'train_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
+	'test_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
 	'params': {
 		'vocab_size': 1000,

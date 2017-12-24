@@ -15,7 +15,7 @@ class DataLoader(object):
     time. But the limits are 1) all examples in dataset have the same shape, 2)
     data transfomer needs to process multiple examples at each time
     """
-    def __init__(self, dataset, batch_size, shuffle):
+    def __init__(self, dataset, batch_size, shuffle=False):
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -31,6 +31,7 @@ class DataLoader(object):
             X = nd.array(X.asnumpy()[idx])
             y = nd.array(y.asnumpy()[idx])
 
+        print(n, self.batch_size, 213)
         for i in range(n//self.batch_size):
             yield (X[i*self.batch_size:(i+1)*self.batch_size],
                    y[i*self.batch_size:(i+1)*self.batch_size])
