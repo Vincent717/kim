@@ -87,7 +87,8 @@ class Kim(nn.Block):
             #fourth block: knowledge-enriched inference composition
             self.inference_composition = InferenceComposition()
 
-    def forward(self, a, b):
+    def forward(self, data):
+        a, b = data
         r = load_wordnet_rel(a, b)
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)

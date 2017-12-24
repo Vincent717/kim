@@ -6,14 +6,15 @@
 """
 conf
 """
-
+from datetime import datetime
 
 conf_params = dict()
 
 universal_config = dict()
 
 universal_config = {
-	'embedding_replacing_rare_word_with_UNK' = True,
+	'embedding_replacing_rare_word_with_UNK': True,
+	'UNK_threshold': 1,
 	'seq_length': 20,
 }
 
@@ -25,6 +26,7 @@ conf_params[1] = {
 	'epoch': 500,
 	'train_data_path': '../data/snli_1.0/snli_1.0/snli_1.0_fake_train.jsonl',
 	'test_data_path': '../data/snli_1.0/snli_1.0/snli_1.0_fake_train.jsonl',
+	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
 	'params': {
 		'vocab_size': 1000,
 		'embed_size': 300,

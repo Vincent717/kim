@@ -13,23 +13,27 @@ from mxnet import gluon
 from mxnet.gluon import nn, rnn
 
 from kim import get_kim_model
-from data_processer import load_data, sentences_to_padded_index_sequences
+from data_processer import load_data, map_to_index
 from kim_conf import conf_params
 import utils
 
 
-def train(data_path, save_model_path, params_index):
+def train(params_index=0):
 	# loda params
 	train_data_path = conf_params[params_index]['train_data_path']
 	test_data_path = conf_params[params_index]['test_data_path']
+	save_model_path = conf_params[params_index]['save_model_path']
 	lr = conf_params[params_index]['lr']
 	batch_size = conf_params[params_index]['batch_size']
 	epoches = conf_params[params_index]['epoch']
 	params = conf_params['params_index']['params']
 
 	# load data
-	train_data = pretty_format(load_data(train_data_path))
-	test_data = pretty_format(load_data(test_data_path))
+	train_data, i2w, w2i = load_data(train_data_path)
+	test_data = load_data(test_data_path, is_pure=False)
+	test_data = map_to_index(test_data, w2i)
+
+	train_data, test_data = utils.DataLoader(train_data, test_data)
 
 	softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
 	trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': lr})
@@ -51,6 +55,8 @@ def train(data_path, save_model_path, params_index):
 	    test_acc = utils.evaluate_accuracy(test_data, net)
 	    print("Epoch %d. Loss: %f, Train acc %f, Test acc %f" % (
 	        epoch, train_loss/len(train_data), train_acc/len(train_data), test_acc))
+	# save model
+	net.save_params(save_model_path)
 
 
 def main(data_path, save_model_path, params_index):
@@ -59,4 +65,4 @@ def main(data_path, save_model_path, params_index):
 
 
 if __name__ == '__main__':
-	main()
+	main('')

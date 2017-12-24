@@ -9,14 +9,31 @@ data processing
 
 from tqdm import tqdm
 from kim_conf import universal_config
+import json
+import random
+import collections
+import re
+import numpy as np
+
 
 
 PADDING = "<PAD>"
+LABEL_MAP = {
+    "entailment": 0,
+    "neutral": 1,
+    "contradiction": 2,
+    "hidden": -1
+}
 
-
-def load_data(data_path, snli=True):
-	return load_nli_data(data_path, snli=snli)
-
+def load_data(data_path, snli=True, is_pure=True):
+	dataset = load_nli_data(data_path, snli=snli)
+    if is_pure:
+        i2w, w2i = sentences_to_padded_index_sequences([dataset])
+        dataset = get_pure_data(dataset)
+        return dataset, i2w, w2i
+    else:
+        sentences_to_padded_sequences(dataset)
+        return dataset
 
 def load_nli_data(path, snli=False, shuffle = True):
     """
@@ -135,7 +152,7 @@ def sentences_to_padded_index_sequences(datasets):
                         itf = 0
                     else:
                         if universal_config['embedding_replacing_rare_word_with_UNK']:
-                            index = word_indices[token_sequence[i]] if word_counter[token_sequence[i]] >= config.UNK_threshold else word_indices["<UNK>"]
+                            index = word_indices[token_sequence[i]] if word_counter[token_sequence[i]] >= universal_config['UNK_threshold'] else word_indices["<UNK>"]
                         else:
                             index = word_indices[token_sequence[i]]
                         itf = 1 / (word_counter[token_sequence[i]] + 1)
@@ -161,4 +178,50 @@ def sentences_to_padded_index_sequences(datasets):
     return indices_to_words, word_indices  #, char_indices, indices_to_char
 
 
+def sentences_to_padded_sequences(datasets):
+    """
+    Annotate datasets with feature vectors. Adding right-sided padding. 
+    """
+    # Extract vocabulary
+    def tokenize(string):
+        string = re.sub(r'\(|\)', '', string)
+        return string.split()
 
+    for i, dataset in enumerate(datasets):
+        for example in tqdm(dataset):
+            for sentence in ['sentence1_binary_parse', 'sentence2_binary_parse']:
+                token_sequence = tokenize(example[sentence])
+                example[sentence + '_sequence'] = token_sequence
+                padding = universal_config["seq_length"] - len(token_sequence)
+                example[sentence + '_sequence'] += [PADDING] * padding
+
+
+def get_pure_data(dataset):
+    X = []
+    y = []
+    for doc in tqdm(dataset):
+        ab = [doc.get('sentence1_index_sequence', nd.zeros(universal_config['seq_length'])))
+             ,doc.get('sentence2_index_sequence', nd.zeros(universal_config['seq_length'])))
+            ]
+        X.append(ab)
+        y.append(doc.get('label'), -1)
+    return X, y
+
+def map_to_index(dataset, w2i):
+    s2is = lambda s: [w2i.get(i,w2i.get(PADDING)) for i in s]
+
+    X = []
+    y = []
+    for doc in tqdm(dataset):
+        ab = [s2is(doc.get('sentence1_sequence', '')),
+              s2is(doc.get('sentence2_sequence', '')),
+            ]
+        X.append(ab)
+        y.append(doc.get('label'), -1)
+    return X, y
+
+
+if __name__ == '__main__':
+    dpath = '../data/snli_1.0/snli_1.0_fake_train.jsonl'
+    x = load_data(dpath)
+    x1 = sentences_to_padded_index_sequences([x])
