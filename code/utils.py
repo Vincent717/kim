@@ -246,18 +246,22 @@ def find_wordnet_rel(word_seqs):  #(batch_size, 2, seq_length)
     out = []
     #print(word_seqs, 88)
     for seqs in word_seqs:
+        aout = []
         a, b = seqs[:]
         for ai in a:
-            aout = []
+            bout = []
             for bi in b:
                 aw = get_synsets(ai)
                 bw = get_synsets(bi)
                 rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
                         is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
-                aout.append(rel)
-                #print(ai, bi, rel)
-            out.append(aout)
-        return nd.array(out)
+                bout.append(rel)    
+            # bout.shape: (b_length, 5)
+            aout.append(bout)
+        # aout.shape: (a_length, b_length, 5)
+        out.append(aout)
+    # out.shape: (batch_size, a_length, b_length, 5)
+    return nd.array(out)
 
 
 def get_word_sequences(data, i2w):  #(batch_size, 2, seq_length)
@@ -265,7 +269,6 @@ def get_word_sequences(data, i2w):  #(batch_size, 2, seq_length)
     for doc in data:
         stn_out = []
         for s in doc:
-            print(s)
             stn_out.append([i2w[i.asscalar()] for i in s])
         out.append(stn_out)
     return out

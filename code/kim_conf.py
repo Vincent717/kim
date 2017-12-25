@@ -15,7 +15,7 @@ universal_config = dict()
 universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
 	'UNK_threshold': 1,
-	'seq_length': 25,
+	'seq_length': 45,
 }
 
 # paper params

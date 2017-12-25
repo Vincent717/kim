@@ -53,7 +53,7 @@ def train(params_index=0):
         for data, label in train_data:  # (32,2,20), (32,)
             word_sequences = utils.get_word_sequences(data, i2w)
             r= utils.find_wordnet_rel(word_sequences)
-            with autograd.record():
+            with mx.autograd.record():
                 output = net((data, r))
                 loss = softmax_cross_entropy(output, label)
             loss.backward()

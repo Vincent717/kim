@@ -98,6 +98,7 @@ def sentences_to_padded_index_sequences(datasets):
     # shared_content = mgr.dict()
     # process_num = config.num_process_prepro
     # process_num = 1
+    maxlen = 0
     for i, dataset in enumerate(datasets):
         # if not shared_file_exist:
         #     num_per_share = len(dataset) / process_num + 1
@@ -110,7 +111,7 @@ def sentences_to_padded_index_sequences(datasets):
         for example in tqdm(dataset):
             s1_tokenize = tokenize(example['sentence1_binary_parse'])
             s2_tokenize = tokenize(example['sentence2_binary_parse'])
-
+            maxlen = max(len(s1_tokenize), len(s2_tokenize), maxlen)
             word_counter.update(s1_tokenize)
             word_counter.update(s2_tokenize)
 
@@ -176,7 +177,7 @@ def sentences_to_padded_index_sequences(datasets):
                 #                 index = char_indices[chars[j]]
                 #             example[sentence + '_char_index'][i,j] = index 
     
-
+    print(maxlen, 'max len')
     return indices_to_words, word_indices  #, char_indices, indices_to_char
 
 
@@ -219,7 +220,6 @@ def map_to_index(dataset, w2i):
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
-       	print(ab, y, 32)
     return nd.array(X), nd.array(y)
 
 

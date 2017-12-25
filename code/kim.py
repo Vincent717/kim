@@ -20,25 +20,34 @@ from utils import find_wordnet_rel
 #         with self.name_scope():
 #             self.attention_h = nn.soft
 
+iszero = lambda x: sum(x != 0).asscalar() == 0
+
+
 def F(m):
     """
     1
+    m: (batch_size, seq_len, seq_len, 5)
     """
-    out = nd.zeros(m.shape[:2])
-    for i in range(m.shape[0]):
-        for j in range(m.shape[1]):
-            if m[i][j] != 0:
-                out[i][j] = 1
+    out = nd.zeros(m.shape[:3])
+    for ba in range(m.shape[0]):
+        for i in range(m.shape[1]):
+            for j in range(m.shape[2]):
+                if not iszero(m[ba][i][j]):
+                    out[ba][i][j] = 1
     return out
 
 def get_co_attention(k_lambda):
 
     def _get_co_attention(as_, bs_, r, lamb=k_lambda):
-        e = nd.dot(as_.T,bs_) + lamb * F(r)
-        alpha = nd.softmax(e, axis=0)
-        beta = nd.softmax(e, axis=1)
-        ac = alpha * bs_
-        bc = beta * as_
+        """
+        as_, bs_: (batch_size, seq_len, embed_size)
+        r: (batch_size, seq_len, seq_len, 5)
+        """
+        e = nd.batch_dot(as_, bs_, transpose_b=True) + lamb * F(r)   # (batch_size, seq_len, seq_len,)
+        alpha = nd.softmax(e, axis=2)  # alpha_ij = exp(eij) / SUM_k(exp(eik))
+        beta = nd.softmax(e, axis=1)   # beta_ij = exp(ij) / SUM_k(exp(ekj))
+        ac = nd.batch_dot(alpha, bs_)               # 
+        bc = nd.batch_dot(beta, as_, transpose_a=True)
         return ac, bc, alpha, beta
     return _get_co_attention
 
@@ -126,12 +135,12 @@ class Kim(nn.Block):
 
     def forward(self, data):
         data_, r = data
-        a, b = data_
+        a, b = data_[:,0], data_[:,1]   # (batch_size, seq_length)
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)
         ac, bc, alpha, beta = self.co_attention(as_, bs_, r)
-        am = nd.concat(self.local_inference_a(nd.concat(as_, ac, as_-ac,nd.dot(as_, ac))), alpha * r)
-        bm = nd.concat(self.local_inference_b(nd.concat(bs_, bc, bs_-bc,nd.dot(bs_, bc))), beta * r)
+        am = nd.concat(self.local_inference_a(nd.concat(as_, ac, as_-ac, as_*ac)), nd.batch_dot(alpha, r))
+        bm = nd.concat(self.local_inference_b(nd.concat(bs_, bc, bs_-bc, bs_*bc)), nd.batch_dot(beta, r)) # maybe buggy
         out = slef.inference_composition(am, bm, alpha, beta, r)
         return out
 
