@@ -7,6 +7,7 @@ import mxnet as mx
 import numpy as np
 from time import time
 import matplotlib.pyplot as plt
+from nltk.corpus import wordnet as wn
 
 class DataLoader(object):
     """similiar to gluon.data.DataLoader, but might be faster.
@@ -31,7 +32,6 @@ class DataLoader(object):
             X = nd.array(X.asnumpy()[idx])
             y = nd.array(y.asnumpy()[idx])
 
-        print(n, self.batch_size, 213)
         for i in range(n//self.batch_size):
             yield (X[i*self.batch_size:(i+1)*self.batch_size],
                    y[i*self.batch_size:(i+1)*self.batch_size])
@@ -198,3 +198,91 @@ def show_images(imgs, nrows, ncols, figsize=None):
             figs[i][j].axes.get_xaxis().set_visible(False)
             figs[i][j].axes.get_yaxis().set_visible(False)
     plt.show()
+
+
+get_synsets = lambda x: set(wn.synsets(x))
+
+def is_syn(x,y):
+    return 1 if x & y else 0
+
+def is_ant(x, y):
+    for xi in x:
+        for li in xi.lemmas():
+            ants = [la.synset() for la in li.antonyms()]
+            if set(ants) & y:
+                return 1
+    return 0
+
+def is_hypernymy(x, y, n_type='avg'):
+    diss = []
+    for xi in x:
+        xi_hyp_set = xi.hypernym_distances()
+        for xih, dis in xi_hyp_set:
+            if xih in y:
+                diss.append(dis)
+    if not diss:
+        return 0
+    else:
+        if n_type == 'max':
+            n = float(max(diss))
+        elif n_type == 'min':
+            n = float(min(diss))
+        else:
+            n = float(sum(diss)/len(diss))
+        return 1 - n/8
+
+def is_hyponymy(x, y, n_type='avg'):
+    return is_hypernymy(y, x, n_type)
+
+def is_same_hypernym(x, y):
+    xh, yh = set(), set()
+    for xi in x:
+        xh.update(xi.hypernyms())
+    for yi in y:
+        yh.update(yi.hypernyms())
+    return 1 if (is_syn(x,y)==0 and xh&yh) else 0
+
+def find_wordnet_rel(word_seqs):  #(batch_size, 2, seq_length)
+    out = []
+    #print(word_seqs, 88)
+    for seqs in word_seqs:
+        a, b = seqs[:]
+        for ai in a:
+            aout = []
+            for bi in b:
+                aw = get_synsets(ai)
+                bw = get_synsets(bi)
+                rel = [is_syn(aw, bw), is_ant(aw, bw), is_hypernymy(aw, bw),
+                        is_hyponymy(aw, bw), is_same_hypernym(aw, bw)]
+                aout.append(rel)
+                #print(ai, bi, rel)
+            out.append(aout)
+        return nd.array(out)
+
+
+def get_word_sequences(data, i2w):  #(batch_size, 2, seq_length)
+    out = []
+    for doc in data:
+        stn_out = []
+        for s in doc:
+            print(s)
+            stn_out.append([i2w[i.asscalar()] for i in s])
+        out.append(stn_out)
+    return out
+
+def main():
+    import sys
+    aw = sys.argv[1]
+    bw = sys.argv[2]
+    a = get_synsets(aw)
+    b = get_synsets(bw)
+    print(aw, bw)
+    print('syn: ', is_syn(a, b))
+    print('ant: ', is_ant(a, b))
+    print('hyper: ', is_hypernymy(a, b))
+    print('hypon: ', is_hyponymy(a, b)) # just inverse of hyper
+    print('same_hypernym: ', is_same_hypernym(a,b))
+
+
+if __name__ == '__main__':
+    main()

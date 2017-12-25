@@ -11,7 +11,7 @@ import mxnet as mx
 from mxnet import nd
 from mxnet import gluon
 from mxnet.gluon import nn, rnn
-
+from utils import find_wordnet_rel
 
 # class KnowledgeEnrichedCoAttention(nn.Block):
 #     def __init__(self, **kwargs):
@@ -20,12 +20,37 @@ from mxnet.gluon import nn, rnn
 #         with self.name_scope():
 #             self.attention_h = nn.soft
 
+def F(m):
+    """
+    1
+    """
+    out = nd.zeros(m.shape[:2])
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            if m[i][j] != 0:
+                out[i][j] = 1
+    return out
+
 def get_co_attention(k_lambda):
-    def 
+
+    def _get_co_attention(as_, bs_, r, lamb=k_lambda):
+        e = nd.dot(as_.T,bs_) + lamb * F(r)
+        alpha = nd.softmax(e, axis=0)
+        beta = nd.softmax(e, axis=1)
+        ac = alpha * bs_
+        bc = beta * as_
+        return ac, bc, alpha, beta
+    return _get_co_attention
+
 
 class InferenceComposition(nn.Block):
-    def __init__(self, **kwargs):
+    def __init__(self, params, **kwargs):
         super(InferenceComposition, self).__init__(**kwargs)
+        composi_hidden_size = params['composi_hidden_size']
+        pool_size = params['pool_size']
+        strides = params['strides']
+        composi_dropout = params['composi_dropout']
+        weight_pool_dense_size = params['weight_pool_dense_size']
         with self.name_scope():  
             self.inference_composition_a = nn.Sequential()
             self.inference_composition_b = nn.Sequential()
@@ -97,21 +122,20 @@ class Kim(nn.Block):
             self.local_inference_b = nn.Dense(local_infer_dense_size, activation='relu')
 
             #fourth block: knowledge-enriched inference composition
-            self.inference_composition = InferenceComposition()
+            self.inference_composition = InferenceComposition(params)
 
     def forward(self, data):
-        a, b = data
-        r = load_wordnet_rel(a, b)
+        data_, r = data
+        a, b = data_
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)
-        ac, alpha = self.co_attention(as_, r)
-        bc, beta = self.co_attention(bs_, r)
+        ac, bc, alpha, beta = self.co_attention(as_, bs_, r)
         am = nd.concat(self.local_inference_a(nd.concat(as_, ac, as_-ac,nd.dot(as_, ac))), alpha * r)
         bm = nd.concat(self.local_inference_b(nd.concat(bs_, bc, bs_-bc,nd.dot(bs_, bc))), beta * r)
         out = slef.inference_composition(am, bm, alpha, beta, r)
         return out
 
 def get_kim_model(params, **kwargs):
-    Kim(params, **kwargs)
+    return Kim(params, **kwargs)
 
 

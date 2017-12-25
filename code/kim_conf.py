@@ -15,7 +15,7 @@ universal_config = dict()
 universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
 	'UNK_threshold': 1,
-	'seq_length': 20,
+	'seq_length': 25,
 }
 
 # paper params
@@ -37,5 +37,7 @@ conf_params[0] = {
 		'pool_size': 2,
 		'strides': 1,
 		'weight_pool_dense_size': 300,
+		'composi_hidden_size': 300,
+		'composi_dropout': 0.5,
 	},
 }

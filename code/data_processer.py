@@ -201,8 +201,8 @@ def get_pure_data(dataset):
     X = []
     y = []
     for doc in tqdm(dataset):
-        ab = [doc.get('sentence1_index_sequence', [0] * universal_config['seq_length'])
-             ,doc.get('sentence2_index_sequence', [0] * universal_config['seq_length'])
+        ab = [doc.get('sentence1_binary_parse_index_sequence', [0] * universal_config['seq_length'])
+             ,doc.get('sentence2_binary_parse_index_sequence', [0] * universal_config['seq_length'])
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
@@ -214,11 +214,12 @@ def map_to_index(dataset, w2i):
     X = []
     y = []
     for doc in tqdm(dataset):
-        ab = [s2is(doc.get('sentence1_sequence', '')),
-              s2is(doc.get('sentence2_sequence', '')),
+        ab = [s2is(doc.get('sentence1_binary_parse_sequence', '')),
+              s2is(doc.get('sentence2_binary_parse_sequence', '')),
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
+       	print(ab, y, 32)
     return nd.array(X), nd.array(y)
 
 
