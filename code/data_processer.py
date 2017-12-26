@@ -16,6 +16,7 @@ import re
 import numpy as np
 from mxnet import nd
 
+import utils
 
 
 
@@ -207,7 +208,8 @@ def get_pure_data(dataset):
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
-    return nd.array(X), nd.array(y)
+    ctx = utils.try_gpu()
+    return nd.array(X, ctx=ctx), nd.array(y, ctx=ctx)
 
 def map_to_index(dataset, w2i):
     s2is = lambda s: [w2i.get(i,w2i.get(PADDING)) for i in s]
@@ -220,7 +222,8 @@ def map_to_index(dataset, w2i):
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
-    return nd.array(X), nd.array(y)
+    ctx = utils.try_gpu()
+    return nd.array(X, ctx=ctx), nd.array(y, ctx=ctx)
 
 
 if __name__ == '__main__':

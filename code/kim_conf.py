@@ -15,7 +15,7 @@ universal_config = dict()
 universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
 	'UNK_threshold': 1,
-	'seq_length': 45,
+	'seq_length': 85,
 }
 
 # paper params
@@ -23,7 +23,7 @@ conf_params[0] = {
 	'lr': 0.0004,
 	'batch_size': 32,
 	'dropout': 0.5,
-	'epoch': 5,
+	'epoch': 1,
 	'train_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
 	'test_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
@@ -36,7 +36,30 @@ conf_params[0] = {
 		'local_infer_dense_size': 300,
 		'pool_size': 2,
 		'strides': 1,
-		'weight_pool_dense_size': 300,
+		'weight_pool_dense_size': 1,
+		'composi_hidden_size': 300,
+		'composi_dropout': 0.5,
+	},
+}
+
+conf_params[1] = {
+	'lr': 0.0004,
+	'batch_size': 32,
+	'dropout': 0.5,
+	'epoch': 300,
+	'train_data_path': '../data/snli_1.0/snli_1.0_train.jsonl',
+	'test_data_path': '../data/snli_1.0/snli_1.0_dev.jsonl',
+	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
+	'params': {
+		'vocab_size': 1000,
+		'embed_size': 300,
+		'encode_hidden_size': 300,
+		'encode_dropout': 0.5,
+		'k_lambda': 0.5,  # 0.1 0.2 0.5 1 2 5 10 20 50
+		'local_infer_dense_size': 300,
+		'pool_size': 2,
+		'strides': 1,
+		'weight_pool_dense_size': 1,
 		'composi_hidden_size': 300,
 		'composi_dropout': 0.5,
 	},

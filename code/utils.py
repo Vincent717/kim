@@ -9,6 +9,17 @@ from time import time
 import matplotlib.pyplot as plt
 from nltk.corpus import wordnet as wn
 
+def try_gpu():
+    """If GPU is available, return mx.gpu(0); else return mx.cpu()"""
+    try:
+        ctx = mx.gpu()
+        _ = nd.array([0], ctx=ctx)
+    except:
+        ctx = mx.cpu()
+    return ctx
+
+_ctx = try_gpu()
+
 class DataLoader(object):
     """similiar to gluon.data.DataLoader, but might be faster.
 
@@ -24,13 +35,13 @@ class DataLoader(object):
     def __iter__(self):
         data = self.dataset[:]
         X = data[0]
-        y = nd.array(data[1])
+        y = nd.array(data[1], ctx=_ctx)
         n = X.shape[0]
         if self.shuffle:
             idx = np.arange(n)
             np.random.shuffle(idx)
-            X = nd.array(X.asnumpy()[idx])
-            y = nd.array(y.asnumpy()[idx])
+            X = nd.array(X.asnumpy()[idx], ctx=_ctx)
+            y = nd.array(y.asnumpy()[idx], ctx=_ctx)
 
         for i in range(n//self.batch_size):
             yield (X[i*self.batch_size:(i+1)*self.batch_size],
@@ -45,7 +56,7 @@ def load_data_fashion_mnist(batch_size, resize=None, root="~/.mxnet/datasets/fas
         # transform a batch of examples
         if resize:
             n = data.shape[0]
-            new_data = nd.zeros((n, resize, resize, data.shape[3]))
+            new_data = nd.zeros((n, resize, resize, data.shape[3]), ctx=_ctx)
             for i in range(n):
                 new_data[i] = image.imresize(data[i], resize, resize)
             data = new_data
@@ -57,14 +68,7 @@ def load_data_fashion_mnist(batch_size, resize=None, root="~/.mxnet/datasets/fas
     test_data = DataLoader(mnist_test, batch_size, shuffle=False)
     return (train_data, test_data)
 
-def try_gpu():
-    """If GPU is available, return mx.gpu(0); else return mx.cpu()"""
-    try:
-        ctx = mx.gpu()
-        _ = nd.array([0], ctx=ctx)
-    except:
-        ctx = mx.cpu()
-    return ctx
+
 
 def try_all_gpus():
     """Return all available GPUs, or [mx.gpu()] if there is no GPU"""
@@ -98,17 +102,19 @@ def _get_batch(batch, ctx):
             gluon.utils.split_and_load(label, ctx),
             data.shape[0])
 
-def evaluate_accuracy(data_iterator, net, ctx=[mx.cpu()]):
+def evaluate_accuracy(data_iterator, net, i2w, ctx=[_ctx]):  #[mx.cpu()]):
     if isinstance(ctx, mx.Context):
         ctx = [ctx]
-    acc = nd.array([0])
+    acc = nd.array([0], ctx=_ctx)
     n = 0.
     if isinstance(data_iterator, mx.io.MXDataIter):
         data_iterator.reset()
     for batch in data_iterator:
         data, label, batch_size = _get_batch(batch, ctx)
         for X, y in zip(data, label):
-            acc += nd.sum(net(X).argmax(axis=1)==y).copyto(mx.cpu())
+            word_sequences = get_word_sequences(X, i2w)
+            r = find_wordnet_rel(word_sequences, ctx=ctx[0])
+            acc += nd.sum(net((X,r)).argmax(axis=1)==y) #.copyto(mx.cpu())
             n += y.size
         acc.wait_to_read() # don't push too many operators into backend
     return acc.asscalar() / n
@@ -242,7 +248,7 @@ def is_same_hypernym(x, y):
         yh.update(yi.hypernyms())
     return 1 if (is_syn(x,y)==0 and xh&yh) else 0
 
-def find_wordnet_rel(word_seqs):  #(batch_size, 2, seq_length)
+def find_wordnet_rel(word_seqs, ctx=_ctx):  #(batch_size, 2, seq_length)
     out = []
     #print(word_seqs, 88)
     for seqs in word_seqs:
@@ -261,7 +267,7 @@ def find_wordnet_rel(word_seqs):  #(batch_size, 2, seq_length)
         # aout.shape: (a_length, b_length, 5)
         out.append(aout)
     # out.shape: (batch_size, a_length, b_length, 5)
-    return nd.array(out)
+    return nd.array(out, ctx=ctx)
 
 
 def get_word_sequences(data, i2w):  #(batch_size, 2, seq_length)
