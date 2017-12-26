@@ -78,15 +78,15 @@ class InferenceComposition(nn.Block):
                 # final MLP
             self.final_mlp = nn.Dense(3, activation='tanh')
 
-    def forward(self, am, bm, alpha, beta, r):
+    def forward(self, am, bm, alpha_r, beta_r):
         av = self.inference_composition_a(am)
         bv = self.inference_composition_b(bm)
         max_pool_a = self.max_pooling_a(av)
         max_pool_b = self.max_pooling_b(bv)
         mean_pool_a = self.mean_pooling_a(av)
         mean_pool_b = self.mean_pooling_b(bv)
-        weight_pool_weight_a = nd.softmax(self.weight_pooling_dense_a(nd.dot(alpha, r)))
-        weight_pool_weight_b = nd.softmax(self.weight_pooling_dense_b(nd.dot(beta, r)))
+        weight_pool_weight_a = nd.softmax(self.weight_pooling_dense_a(alpha_r))
+        weight_pool_weight_b = nd.softmax(self.weight_pooling_dense_b(beta_r))
         aw = weight_pool_weight_a * av
         bw = weight_pool_weight_b * bv
         out = self.final_mlp(nd.concat(max_pool_a, mean_pool_aj, aw, max_pool_b, mean_pool_b, bw))
@@ -136,12 +136,38 @@ class Kim(nn.Block):
     def forward(self, data):
         data_, r = data
         a, b = data_[:,0], data_[:,1]   # (batch_size, seq_length)
+            # first step: input encoding
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)
+            
+            # second stpe: co-attention, alpha_r and beta_r
+            # alpha_r.shape = (batch_size, seq_len, 5)
         ac, bc, alpha, beta = self.co_attention(as_, bs_, r)
-        am = nd.concat(self.local_inference_a(nd.concat(as_, ac, as_-ac, as_*ac)), nd.batch_dot(alpha, r))
-        bm = nd.concat(self.local_inference_b(nd.concat(bs_, bc, bs_-bc, bs_*bc)), nd.batch_dot(beta, r)) # maybe buggy
-        out = slef.inference_composition(am, bm, alpha, beta, r)
+        print(alpha.shape, r[:,:,0].shape, 7777)
+        alpha_r = nd.batch_dot(alpha,r[:,:,0]).reshape(tuple(list(alpha.shape) + [1]))
+        beta_r = nd.batch_dot(beta,r[:,:,0]).reshape(tuple(list(beta.shape) + [1]))
+        print(alpha_r.shape, 73737)
+        for i in range(1, r.shape[-1]):
+            alpha_r = nd.concat(alpha_r, nd.batch_dot(alpha,r[:,:,i]).reshape(tuple(list(alpha.shape) + [1])), dim=3)
+        for i in range(1, r.shape[-1]):
+            beta_r = nd.concat(beta_r, nd.batch_dot(beta,r[:,:,i]).reshape(tuple(list(beta.shape) + [1])), dim=3)
+        #beta_r = nd.concat([nd.batch_dot(beta,r[:,:,:,i], transpose_a=True).reshape(tuple(list(beta.shape) + [1])) for i in range(r.shape[-1])] ,dim=3)
+        print(alpha_r.shape, beta_r.shape, 3383838)
+
+            # third step: local inference
+        concat_a = nd.concat(as_, ac, as_-ac, as_*ac, alpha_r, dim=2)
+        am = self.local_inference_a(concat_a[:,0])
+        for i in range(1, concat_a.shape[-1]):
+            am = nd.concat(am, self.local_inference_a(concat_a[:,i]))
+        print(concat_a.shape, am.shape, 3282)
+        concat_b = nd.concat(bs_, bc, bs_-bc, bs_*bc, beta_r, dim=2)
+        bm = self.local_inference_b(concat_b[:,0])
+        for i in range(1, concat_b.shape[-1]):
+            bm = nd.concat(bm, self.local_inference_b(concat_b[:,i]))
+        print(concat_b.shape, bm.shape, 323282)
+
+        #bm = nd.concat(self.local_inference_b(nd.concat(bs_, bc, bs_-bc, bs_*bc, beta_r)), beta_r)
+        out = slef.inference_composition(am, bm, alpha_r, beta_r)
         return out
 
 def get_kim_model(params, **kwargs):
