@@ -8,11 +8,12 @@ import numpy as np
 from time import time
 import matplotlib.pyplot as plt
 from nltk.corpus import wordnet as wn
+import pickle
 
-def try_gpu():
+def try_gpu(i=0):
     """If GPU is available, return mx.gpu(0); else return mx.cpu()"""
     try:
-        ctx = mx.gpu()
+        ctx = mx.gpu(i)
         _ = nd.array([0], ctx=ctx)
     except:
         ctx = mx.cpu()
@@ -27,28 +28,29 @@ class DataLoader(object):
     time. But the limits are 1) all examples in dataset have the same shape, 2)
     data transfomer needs to process multiple examples at each time
     """
-    def __init__(self, dataset, batch_size, shuffle=False):
+    def __init__(self, dataset, batch_size, ctx=_ctx, shuffle=False):
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
+        self.ctx = ctx
 
     def __iter__(self):
         data = self.dataset[:]
         X = data[0]
-        y = nd.array(data[1], ctx=_ctx)
+        y = nd.array(data[1], ctx=self.ctx)
         n = X.shape[0]
         if self.shuffle:
             idx = np.arange(n)
             np.random.shuffle(idx)
-            X = nd.array(X.asnumpy()[idx], ctx=_ctx)
-            y = nd.array(y.asnumpy()[idx], ctx=_ctx)
+            X = nd.array(X.asnumpy()[idx], ctx=self.ctx)
+            y = nd.array(y.asnumpy()[idx], ctx=self.ctx)
 
         for i in range(n//self.batch_size):
             yield (X[i*self.batch_size:(i+1)*self.batch_size],
                    y[i*self.batch_size:(i+1)*self.batch_size])
 
     def __len__(self):
-        return len(self.dataset)//self.batch_size
+        return len(self.dataset[0])//self.batch_size
 
 def load_data_fashion_mnist(batch_size, resize=None, root="~/.mxnet/datasets/fashion-mnist"):
     """download the fashion mnist dataest and then load into memory"""
@@ -278,6 +280,11 @@ def get_word_sequences(data, i2w):  #(batch_size, 2, seq_length)
             stn_out.append([i2w[i.asscalar()] for i in s])
         out.append(stn_out)
     return out
+
+
+def load_word_vec(wpath):
+    with open(wpath, 'rb') as f:
+        return pickle.loads(f.read())
 
 def main():
     import sys

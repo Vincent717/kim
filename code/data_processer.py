@@ -28,11 +28,13 @@ LABEL_MAP = {
     "hidden": -1
 }
 
-def load_data(data_path, snli=True, is_pure=True):
+_ctx = utils.try_gpu()
+
+def load_data(data_path, ctx=_ctx, snli=True, is_pure=True):
     dataset = load_nli_data(data_path, snli=snli)
     if is_pure:
         i2w, w2i = sentences_to_padded_index_sequences([dataset])
-        dataset = get_pure_data(dataset)
+        dataset = get_pure_data(dataset, ctx)
         return dataset, i2w, w2i
     else:
         sentences_to_padded_sequences(dataset)
@@ -193,13 +195,13 @@ def sentences_to_padded_sequences(dataset):
 
     for example in tqdm(dataset):
         for sentence in ['sentence1_binary_parse', 'sentence2_binary_parse']:
-            token_sequence = tokenize(example[sentence])
-            example[sentence + '_sequence'] = token_sequence
+            token_sequence = tokenize(example[sentence])[:universal_config["seq_length"]]
+            example[sentence + '_sequence'] = token_sequence[:]
             padding = universal_config["seq_length"] - len(token_sequence)
             example[sentence + '_sequence'] += [PADDING] * padding
 
 
-def get_pure_data(dataset):
+def get_pure_data(dataset, ctx):
     X = []
     y = []
     for doc in tqdm(dataset):
@@ -208,21 +210,19 @@ def get_pure_data(dataset):
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
-    ctx = utils.try_gpu()
     return nd.array(X, ctx=ctx), nd.array(y, ctx=ctx)
 
-def map_to_index(dataset, w2i):
+def map_to_index(dataset, w2i, ctx=_ctx):
     s2is = lambda s: [w2i.get(i,w2i.get(PADDING)) for i in s]
 
     X = []
     y = []
     for doc in tqdm(dataset):
-        ab = [s2is(doc.get('sentence1_binary_parse_sequence', '')),
-              s2is(doc.get('sentence2_binary_parse_sequence', '')),
+        ab = [s2is(doc.get('sentence1_binary_parse_sequence', [])),
+              s2is(doc.get('sentence2_binary_parse_sequence', [])),
             ]
         X.append(ab)
         y.append(doc.get('label', -1))
-    ctx = utils.try_gpu()
     return nd.array(X, ctx=ctx), nd.array(y, ctx=ctx)
 
 

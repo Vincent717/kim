@@ -15,20 +15,35 @@ universal_config = dict()
 universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
 	'UNK_threshold': 1,
-	'seq_length': 85,
+	'seq_length': 30,
 }
+
+
+# stats of seq_length
+# 0.98 26
+# 0.97 24
+# 0.985 28
+# 0.9 19
+# 0.95 22
+# 0.99 30
+# 0.995 34
+# max: 82
+
+
 
 # paper params
 conf_params[0] = {
 	'lr': 0.0004,
 	'batch_size': 32,
 	'dropout': 0.5,
-	'epoch': 1,
-	'train_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
-	'test_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
+	'epoch': 100,
+	'train_data_path': '../data/snli_1.0/snli_1.0_5w_train.jsonl',
+	'test_data_path': '../data/snli_1.0/snli_1.0_dev.jsonl',
+	'word_vec_path': '../data/glove.dic',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
+	'gpu': 0,
 	'params': {
-		'vocab_size': 1000,
+		'vocab_size': 6525,
 		'embed_size': 300,
 		'encode_hidden_size': 300,
 		'encode_dropout': 0.5,
@@ -49,7 +64,9 @@ conf_params[1] = {
 	'epoch': 300,
 	'train_data_path': '../data/snli_1.0/snli_1.0_train.jsonl',
 	'test_data_path': '../data/snli_1.0/snli_1.0_dev.jsonl',
+	'word_vec_path': '../data/glove.dic',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
+	'gpu': 0,
 	'params': {
 		'vocab_size': 1000,
 		'embed_size': 300,

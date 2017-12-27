@@ -8,10 +8,11 @@ definition of KIM model
 """
 
 import mxnet as mx
-from mxnet import nd
+from mxnet import nd, init
 from mxnet import gluon
 from mxnet.gluon import nn, rnn
 from utils import find_wordnet_rel, try_gpu
+import random
 
 # class KnowledgeEnrichedCoAttention(nn.Block):
 #     def __init__(self, **kwargs):
@@ -24,12 +25,12 @@ iszero = lambda x: sum(x != 0).asscalar() == 0
 
 _ctx = try_gpu()
 
-def F(m):
+def F(m, ctx=_ctx):
     """
     1
     m: (batch_size, seq_len, seq_len, 5)
     """
-    out = nd.zeros(m.shape[:3], ctx=_ctx)
+    out = nd.zeros(m.shape[:3], ctx=ctx)
     for ba in range(m.shape[0]):
         for i in range(m.shape[1]):
             for j in range(m.shape[2]):
@@ -37,20 +38,23 @@ def F(m):
                     out[ba][i][j] = 1
     return out
 
-def get_co_attention(k_lambda):
+def get_co_attention(k_lambda, ctx):
 
     def _get_co_attention(as_, bs_, r, lamb=k_lambda):
         """
         as_, bs_: (batch_size, seq_len, embed_size)
         r: (batch_size, seq_len, seq_len, 5)
         """
-        e = nd.batch_dot(as_, bs_, transpose_b=True) + lamb * F(r)   # (batch_size, seq_len, seq_len,)
+        e = nd.batch_dot(as_, bs_, transpose_b=True) + lamb * F(r, ctx)   # (batch_size, seq_len, seq_len,)
         alpha = nd.softmax(e, axis=2)  # alpha_ij = exp(eij) / SUM_k(exp(eik))
         beta = nd.softmax(e, axis=1)   # beta_ij = exp(ij) / SUM_k(exp(ekj))
         ac = nd.batch_dot(alpha, bs_)               # 
         bc = nd.batch_dot(beta, as_, transpose_a=True)
         return ac, bc, alpha, beta
     return _get_co_attention
+
+
+
 
 
 class InferenceComposition(nn.Block):
@@ -90,12 +94,11 @@ class InferenceComposition(nn.Block):
 
 
 class Kim(nn.Block):
-    def __init__(self, params, verbose=False, **kwargs):
+    def __init__(self, params, ctx=_ctx, i2w='', word_vec='', verbose=False, **kwargs):
         super(Kim, self).__init__(**kwargs)
         self.verbose = verbose
-
-        vocab_size = params['vocab_size'] 
-        embed_size = params['embed_size']
+        vocab_size = len(i2w) if i2w else params['vocab_size'] 
+        embed_size = len(word_vec['.'].split()) if word_vec else params['embed_size']
         encode_hidden_size = params['encode_hidden_size']
         encode_dropout  = params['encode_dropout']
         k_lambda = params['k_lambda']
@@ -110,9 +113,9 @@ class Kim(nn.Block):
             self.input_encoding_layer_b = nn.Sequential()
                 # embedding
             self.input_encoding_layer_a.add(nn.Embedding(vocab_size, embed_size, 
-                weight_initializer=None))  # should initialize with pre-trained word embedding
+                weight_initializer=MyEmbedInit(i2w,word_vec,vocab_size,embed_size,ctx)))  # should initialize with pre-trained word embedding
             self.input_encoding_layer_b.add(nn.Embedding(vocab_size, embed_size, 
-                weight_initializer=None))
+                weight_initializer=MyEmbedInit(i2w,word_vec,vocab_size,embed_size,ctx)))
                 # encoder: bilstm
             self.input_encoding_layer_a.add(rnn.LSTM(hidden_size=encode_hidden_size,
                 dropout=encode_dropout, bidirectional=True))
@@ -120,7 +123,7 @@ class Kim(nn.Block):
                 dropout=encode_dropout, bidirectional=True))
 
             # second block: knowledge-enriched co-attention (a function used in forward)
-            self.co_attention = get_co_attention(k_lambda)
+            self.co_attention = get_co_attention(k_lambda, ctx)
 
             # third block: knowledge-enriched local inference collection
             self.local_inference_a = nn.Dense(local_infer_dense_size, activation='relu', flatten=False)
@@ -159,6 +162,34 @@ class Kim(nn.Block):
         bm = self.local_inference_b(nd.concat(bs_, bc, bs_-bc, bs_*bc, beta_r, dim=2))
         out = self.inference_composition(am, bm, alpha_r, beta_r)
         return out
+
+
+class MyEmbedInit(init.Initializer):
+    def __init__(self, i2w, word_vec, vocab_size, embed_size, ctx):
+        super(MyEmbedInit, self).__init__()
+        self._verbose = True
+        self.i2w = i2w
+        self.word_vec = word_vec
+        self.vocab_size = vocab_size
+        self.embed_size = embed_size
+        self.ctx = ctx
+
+    def _init_weight(self, _, arr):
+        # 初始化权重，使用out=arr后我们不需指定形状
+        self.init_embedding()
+
+    def init_embedding(self):
+        if self.i2w and self.word_vec:
+            out = []
+            for i in range(len(self.i2w)):
+                word = self.i2w[i]
+                if word in self.word_vec:
+                    out.append([float(i) for i in self.word_vec[word].split()])
+                else:
+                    out.append([random.uniform(0,1) for _ in range(self.embed_size)])
+            return nd.array(out, ctx=self.ctx)
+        else:
+            return nd.random.uniform(shape=[self.vocab_size, self.embed_size], ctx=self.ctx)
 
 def get_kim_model(params, **kwargs):
     return Kim(params, **kwargs)

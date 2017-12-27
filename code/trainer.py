@@ -7,6 +7,7 @@
 training
 """
 
+import sys
 import mxnet as mx
 from mxnet import nd
 from mxnet import gluon
@@ -17,6 +18,7 @@ from data_processer import load_data, map_to_index
 from kim_conf import conf_params
 import utils
 import logging
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.DEBUG,
                 format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -30,54 +32,59 @@ def train(params_index=0):
     # loda params
     train_data_path = conf_params[params_index]['train_data_path']
     test_data_path = conf_params[params_index]['test_data_path']
+    word_vec_path = conf_params[params_index]['word_vec_path']
     save_model_path = conf_params[params_index]['save_model_path']
     lr = conf_params[params_index]['lr']
     batch_size = conf_params[params_index]['batch_size']
     epoches = conf_params[params_index]['epoch']
+    gpu_index = conf_params[params_index]['gpu']
     params = conf_params[params_index]['params']
 
+    ctx=utils.try_gpu(gpu_index)
     # load data
     print('try to load data...')
-    train_data, i2w, w2i = load_data(train_data_path)
-    test_data = load_data(test_data_path, is_pure=False)
-    test_data = map_to_index(test_data, w2i)
-    #print(train_data,329)
-    train_data = utils.DataLoader(train_data, batch_size)
-    test_data = utils.DataLoader(test_data, batch_size)
+    train_data, i2w, w2i = load_data(train_data_path, ctx=ctx)
+    test_data = load_data(test_data_path, ctx=ctx, is_pure=False)
+    test_data = map_to_index(test_data, w2i, ctx)
+    print('vocab size ', len(w2i))
+    train_data = utils.DataLoader(train_data, batch_size, ctx)
+    test_data = utils.DataLoader(test_data, batch_size, ctx)
     print('data loaded!', len(train_data), len(test_data))
+    word_vec = utils.load_word_vec(word_vec_path)
 
     print('try to initialize model...')
-    net = get_kim_model(params)
-    ctx=utils.try_gpu()
+    net = get_kim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
     net.initialize(ctx=ctx)
+    #print(net.collect_params())
+
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
     trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': lr})
     print('model initialized!', net)
-
     print('start training...')
-    for epoch in range(epoches):
+    for epoch in tqdm(range(epoches)):
         train_loss = 0.
         train_acc = 0.
-        for data, label in train_data:  # (32,2,20), (32,)
+        for data, label in tqdm(train_data):  # (32,2,20), (32,)
             word_sequences = utils.get_word_sequences(data, i2w)
-            r= utils.find_wordnet_rel(word_sequences)
+            r= utils.find_wordnet_rel(word_sequences, ctx)
             with mx.autograd.record():
                 output = net((data, r))
                 loss = softmax_cross_entropy(output, label)
             loss.backward()
             trainer.step(batch_size)
-
             train_loss += nd.mean(loss).asscalar()
             train_acc += utils.accuracy(output, label)
-
-        test_acc = utils.evaluate_accuracy(test_data, net, i2w)
+        print('train accuracy')
+        test_acc = utils.evaluate_accuracy(test_data, net, i2w, ctx=[ctx])
+        print('test accuracy')
         line = "Epoch %d. Loss: %f, Train acc %f, Test acc %f" % (
             epoch, train_loss/len(train_data), train_acc/len(train_data), test_acc)
         print(line)
-        logging.log(line)
+        logging.info(line)
         # save model
-        print('finish train')
         net.save_params(save_model_path + '.' + str(epoch))
+    print('finish train')
+
 
 
 def main(params_index):
@@ -91,5 +98,6 @@ def predictor(params_index):
     print(net)
 
 if __name__ == '__main__':
-    main(1)
+    index = int(sys.argv[1])
+    main(index)
     #predictor(0)
