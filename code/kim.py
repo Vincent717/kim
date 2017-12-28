@@ -48,11 +48,26 @@ def get_co_attention(k_lambda, ctx):
         e = nd.batch_dot(as_, bs_, transpose_b=True) + lamb * F(r, ctx)   # (batch_size, seq_len, seq_len,)
         alpha = nd.softmax(e, axis=2)  # alpha_ij = exp(eij) / SUM_k(exp(eik))
         beta = nd.softmax(e, axis=1)   # beta_ij = exp(ij) / SUM_k(exp(ekj))
+        beta = nd.transpose(beta, axes=[0,2,1])   # transpose becasue of softmax axis=1
         ac = nd.batch_dot(alpha, bs_)               # 
-        bc = nd.batch_dot(beta, as_, transpose_a=True)
+        bc = nd.batch_dot(beta, as_)
         return ac, bc, alpha, beta
     return _get_co_attention
 
+def reshape_batch_dot(x, y):
+    """
+    reshape to 3D, and then batch_dot
+    x: (32, 45, 45)
+    y: (32, 45, 45, 5)
+    xy: (32, 45, 5)
+    """
+    x_shape = list(x.shape)
+    y_shape = list(y.shape)
+    x_new_shape = tuple([x_shape[0]*x_shape[1], x_shape[-1], 1])    # (32*45, 45, 1)
+    y_new_shape = tuple([y_shape[0]*y_shape[1]] + y_shape[2:])      # (32*45, 45, 5)
+    out = nd.batch_dot(y.reshape(y_new_shape), x.reshape(x_new_shape), transpose_a=True)  # (32*45, 5)
+    out = out.reshape(tuple(x_shape[:-1] + [y_shape[-1]]))   # (32, 45, 5)
+    return out
 
 
 
@@ -139,22 +154,23 @@ class Kim(nn.Block):
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)
             
-            # second stpe: co-attention, alpha_r and beta_r
-            # alpha_r.shape = (batch_size, seq_len, 5)
+            # second step: co-attention, alpha_r and beta_r
+            # alpha_r.shape = (batch_size, seq_len, 5) 
         ac, bc, alpha, beta = self.co_attention(as_, bs_, r)
-        alpha_r = nd.batch_dot(r[0], alpha[0].reshape(tuple(list(alpha.shape)[1:] + [1])), transpose_a=True)
-        beta_r = nd.batch_dot(r[0], beta[0].reshape(tuple(list(beta.shape)[1:] + [1])), transpose_a=True)
-        alpha_r = alpha_r.reshape(tuple([1] + list(alpha_r.shape)[:-1]))
-        beta_r = beta_r.reshape(tuple([1] + list(beta_r.shape)[:-1]))
-        for i in range(1, r.shape[0]):
-            tmp = nd.batch_dot(r[i], alpha[i].reshape(tuple(list(alpha.shape)[1:] + [1])), transpose_a=True)
-            tmp = tmp.reshape(tuple([1] + list(tmp.shape)[:-1]))
-            alpha_r = nd.concat(alpha_r, tmp, dim=0)
-        for i in range(1, r.shape[0]):
-            tmp = nd.batch_dot(r[i], beta[i].reshape(tuple(list(beta.shape)[1:] + [1])), transpose_a=True)
-            tmp = tmp.reshape(tuple([1] + list(tmp.shape)[:-1]))
-            beta_r = nd.concat(beta_r, tmp, dim=0)
-        #beta_r = nd.concat([nd.batch_dot(beta,r[:,:,:,i], transpose_a=True).reshape(tuple(list(beta.shape) + [1])) for i in range(r.shape[-1])] ,dim=3)
+        alpha_r = reshape_batch_dot(alpha, r)
+        beta_r = reshape_batch_dot(beta, r)
+        # alpha_r = nd.batch_dot(r[0], alpha[0].reshape(tuple(list(alpha.shape)[1:] + [1])), transpose_a=True)
+        # beta_r = nd.batch_dot(r[0], beta[0].reshape(tuple(list(beta.shape)[1:] + [1])), transpose_a=True)
+        # alpha_r = alpha_r.reshape(tuple([1] + list(alpha_r.shape)[:-1]))
+        # beta_r = beta_r.reshape(tuple([1] + list(beta_r.shape)[:-1]))
+        # for i in range(1, r.shape[0]):
+        #     tmp = nd.batch_dot(r[i], alpha[i].reshape(tuple(list(alpha.shape)[1:] + [1])), transpose_a=True)
+        #     tmp = tmp.reshape(tuple([1] + list(tmp.shape)[:-1]))
+        #     alpha_r = nd.concat(alpha_r, tmp, dim=0)
+        # for i in range(1, r.shape[0]):
+        #     tmp = nd.batch_dot(r[i], beta[i].reshape(tuple(list(beta.shape)[1:] + [1])), transpose_a=True)
+        #     tmp = tmp.reshape(tuple([1] + list(tmp.shape)[:-1]))
+        #     beta_r = nd.concat(beta_r, tmp, dim=0)
 
             # third step: local inference
             # am.shape: (batch_size, seq_len, hidden_size)

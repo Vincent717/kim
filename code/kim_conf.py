@@ -14,7 +14,7 @@ universal_config = dict()
 
 universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
-	'UNK_threshold': 1,
+	'UNK_threshold': 2,
 	'seq_length': 30,
 }
 
@@ -34,14 +34,16 @@ universal_config = {
 # paper params
 conf_params[0] = {
 	'lr': 0.0004,
+	'grad_clip': 10,
+	'optimizer': 'adam',
 	'batch_size': 32,
 	'dropout': 0.5,
 	'epoch': 100,
 	'train_data_path': '../data/snli_1.0/snli_1.0_5w_train.jsonl',
-	'test_data_path': '../data/snli_1.0/snli_1.0_dev.jsonl',
+	'test_data_path': '../data/snli_1.0/snli_1.0_fake_dev.jsonl',
 	'word_vec_path': '../data/glove.dic',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
-	'gpu': 0,
+	'gpu': 1,
 	'params': {
 		'vocab_size': 6525,
 		'embed_size': 300,
@@ -59,6 +61,8 @@ conf_params[0] = {
 
 conf_params[1] = {
 	'lr': 0.0004,
+	'grad_clip': 10,
+	'optimizer': 'adam',
 	'batch_size': 32,
 	'dropout': 0.5,
 	'epoch': 300,

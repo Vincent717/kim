@@ -19,11 +19,12 @@ from kim_conf import conf_params
 import utils
 import logging
 from tqdm import tqdm
+from datetime import datetime
 
 logging.basicConfig(level=logging.DEBUG,
                 format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                 datefmt='%a, %d %b %Y %H:%M:%S',
-                filename='kim_train.log',
+                filename='kim_train_%s.log' % datetime.now().strftime('%y%m%d_%H%M'),
                 filemode='w')
 
 
@@ -35,12 +36,14 @@ def train(params_index=0):
     word_vec_path = conf_params[params_index]['word_vec_path']
     save_model_path = conf_params[params_index]['save_model_path']
     lr = conf_params[params_index]['lr']
+    grad_clip = conf_params[params_index]['grad_clip']
+    optimizer = conf_params[params_index]['optimizer']
     batch_size = conf_params[params_index]['batch_size']
     epoches = conf_params[params_index]['epoch']
     gpu_index = conf_params[params_index]['gpu']
     params = conf_params[params_index]['params']
-
     ctx=utils.try_gpu(gpu_index)
+
     # load data
     print('try to load data...')
     train_data, i2w, w2i = load_data(train_data_path, ctx=ctx)
@@ -58,15 +61,16 @@ def train(params_index=0):
     #print(net.collect_params())
 
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
-    trainer = gluon.Trainer(net.collect_params(), 'sgd', {'learning_rate': lr})
-    print('model initialized!', net)
+    trainer = gluon.Trainer(net.collect_params(), optimizer, {'learning_rate': lr, 'clip_gradient': grad_clip})
+    print('model initialized!', net, ctx)
     print('start training...')
     for epoch in tqdm(range(epoches)):
         train_loss = 0.
         train_acc = 0.
         for data, label in tqdm(train_data):  # (32,2,20), (32,)
             word_sequences = utils.get_word_sequences(data, i2w)
-            r= utils.find_wordnet_rel(word_sequences, ctx)
+            r = utils.find_wordnet_rel(word_sequences, ctx)
+            #r= nd.ones([32, 30, 30, 5],ctx=ctx)
             with mx.autograd.record():
                 output = net((data, r))
                 loss = softmax_cross_entropy(output, label)
