@@ -30,14 +30,15 @@ LABEL_MAP = {
 
 _ctx = utils.try_gpu()
 
-def load_data(data_path, ctx=_ctx, snli=True, is_pure=True):
+def load_data(data_path, ctx=_ctx, snli=True, is_train=True, need_char=False, need_syntacic=False):
     dataset = load_nli_data(data_path, snli=snli)
-    if is_pure:
-        i2w, w2i = sentences_to_padded_index_sequences([dataset])
+    if need_char: # need character level data
+    if is_train:
+        i2w, w2i = sentences_to_padded_index_sequences([dataset], need_char, need_syntacic, ctx)
         dataset = get_pure_data(dataset, ctx)
         return dataset, i2w, w2i
     else:
-        sentences_to_padded_sequences(dataset)
+        sentences_to_padded_sequences(dataset, need_char, need_syntacic, ctx)
         return dataset
 
 def load_nli_data(path, snli=False, shuffle = True):
@@ -86,7 +87,7 @@ def load_nli_data_genre(path, genre, snli=True, shuffle = True):
 
 # process data
 
-def sentences_to_padded_index_sequences(datasets):
+def sentences_to_padded_index_sequences(datasets, need_char=False, need_syntacic=False, ctx=_ctx):
     """
     Annotate datasets with feature vectors. Adding right-sided padding. 
     """
@@ -135,13 +136,14 @@ def sentences_to_padded_index_sequences(datasets):
     word_indices = dict(zip(vocabulary, range(len(vocabulary))))
     indices_to_words = {v: k for k, v in word_indices.items()}
 
-    # char level, omit
-    #char_vocab = set([char for char in char_counter])
-    #char_vocab = list(char_vocab)
-    #char_vocab = [PADDING] + char_vocab
-    #char_indices = dict(zip(char_vocab, range(len(char_vocab))))
-    #indices_to_char = {v: k for k, v in char_indices.items()}
-    
+    # char level
+    if need_char:
+        char_vocab = set([char for char in char_counter])
+        char_vocab = list(char_vocab)
+        char_vocab = [PADDING] + char_vocab
+        char_indices = dict(zip(char_vocab, range(len(char_vocab))))
+        indices_to_char = {v: k for k, v in char_indices.items()}
+        
 
     for i, dataset in enumerate(datasets):
         for example in tqdm(dataset):
@@ -166,25 +168,39 @@ def sentences_to_padded_index_sequences(datasets):
                     
                     example[sentence + '_inverse_term_frequency'][i] = itf
                 
-                # char level, omit
-                #example[sentence + '_char_index'] = np.zeros((universal_config["seq_length"], config.char_in_word_size), dtype=np.int32)
-                # for i in range(universal_config["seq_length"]):
-                #     if i >= len(token_sequence):
-                #         continue
-                #     else:
-                #         chars = [c for c in token_sequence[i]]
-                #         for j in range(config.char_in_word_size):
-                #             if j >= (len(chars)):
-                #                 break
-                #             else:
-                #                 index = char_indices[chars[j]]
-                #             example[sentence + '_char_index'][i,j] = index 
-    
+                # char level : seq_len * word_len
+                if need_char:  
+                    example[sentence + '_char_index'] = np.zeros((universal_config["seq_length"], universal_config["char_in_word_size"]), dtype=np.int32)
+                    for i in range(universal_config["seq_length"]):
+                        if i >= len(token_sequence):
+                            continue
+                        else:
+                            chars = [c for c in token_sequence[i]]
+                            for j in range(universal_config["char_in_word_size"]):
+                                if j >= (len(chars)):
+                                    break
+                                else:
+                                    index = char_indices[chars[j]]
+                                example[sentence + '_char_index'][i,j] = index 
+                if need_syntacic:
+                    premise_pos_vectors = generate_pos_feature_tensor([dataset[i]['sentence1_parse'][:] for i in indices], premise_pad_crop_pair)
+                    hypothesis_pos_vectors = generate_pos_feature_tensor([dataset[i]['sentence2_parse'][:] for i in indices], hypothesis_pad_crop_pair)
+
+                    premise_exact_match = construct_one_hot_feature_tensor([shared_content[pairIDs[i]]["sentence1_token_exact_match_with_s2"][:] for i in range(len(indices))], premise_pad_crop_pair, 1)
+                    hypothesis_exact_match = construct_one_hot_feature_tensor([shared_content[pairIDs[i]]["sentence2_token_exact_match_with_s1"][:] for i in range(len(indices))], hypothesis_pad_crop_pair, 1)
+              
+                    premise_exact_match = np.expand_dims(premise_exact_match, 2)
+                    hypothesis_exact_match = np.expand_dims(hypothesis_exact_match, 2)
+
+
     print(maxlen, 'max len')
-    return indices_to_words, word_indices  #, char_indices, indices_to_char
+    if need_char:
+        return indices_to_words, word_indices, char_indices, indices_to_char
+    else:
+        return indices_to_words, word_indices, None, None  
 
 
-def sentences_to_padded_sequences(dataset):
+def sentences_to_padded_sequences(dataset, need_char=False, need_syntacic=False):
     """
     Annotate datasets with feature vectors. Adding right-sided padding. 
     """
@@ -193,13 +209,23 @@ def sentences_to_padded_sequences(dataset):
         string = re.sub(r'\(|\)', '', string)
         return string.split()
 
+    def pad_list(s, fix_len):
+        res = list(s)
+        if len(res) > fix_len:
+            return res[:fix_len]
+        else:
+            res += [''] * (fix_len - len(res))
+            return res
+
     for example in tqdm(dataset):
         for sentence in ['sentence1_binary_parse', 'sentence2_binary_parse']:
             token_sequence = tokenize(example[sentence])[:universal_config["seq_length"]]
             example[sentence + '_sequence'] = token_sequence[:]
             padding = universal_config["seq_length"] - len(token_sequence)
             example[sentence + '_sequence'] += [PADDING] * padding
-
+            if need_char:
+                example[sentence + '_char'] = [pad_list(word, universal_config['char_in_word_size']) for word in token_sequence]
+                example[sentence + '_char'] += [[''] * universal_config['char_in_word_size']] * padding
 
 def get_pure_data(dataset, ctx):
     X = []

@@ -16,6 +16,7 @@ universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
 	'UNK_threshold': 2,
 	'seq_length': 30,
+	'char_in_word_size': 8,
 }
 
 

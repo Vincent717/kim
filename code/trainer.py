@@ -47,7 +47,7 @@ def train(model_type='kim', params_index=0):
     # load data
     print('try to load data...')
     train_data, i2w, w2i = load_data(train_data_path, ctx=ctx)
-    test_data = load_data(test_data_path, ctx=ctx, is_pure=False)
+    test_data = load_data(test_data_path, ctx=ctx, is_train=False)
     test_data = map_to_index(test_data, w2i, ctx)
     print('vocab size ', len(w2i))
     train_data = utils.DataLoader(train_data, batch_size, ctx)
