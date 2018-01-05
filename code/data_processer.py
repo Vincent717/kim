@@ -8,7 +8,7 @@ data processing
 """
 
 from tqdm import tqdm
-from kim_conf import universal_config
+from conf import universal_config
 import json
 import random
 import collections

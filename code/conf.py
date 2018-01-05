@@ -30,7 +30,7 @@ universal_config = {
 # max: 82
 
 
-
+# kim conf
 # paper params
 conf_params[0] = {
 	'lr': 0.0004,
@@ -60,6 +60,35 @@ conf_params[0] = {
 }
 
 conf_params[1] = {
+	'lr': 0.0004,
+	'grad_clip': 10,
+	'optimizer': 'adam',
+	'batch_size': 32,
+	'dropout': 0.5,
+	'epoch': 300,
+	'train_data_path': '../data/snli_1.0/snli_1.0_train.jsonl',
+	'test_data_path': '../data/snli_1.0/snli_1.0_dev.jsonl',
+	'word_vec_path': '../data/glove.dic',
+	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
+	'gpu': 0,
+	'params': {
+		'vocab_size': 1000,
+		'embed_size': 300,
+		'encode_hidden_size': 300,
+		'encode_dropout': 0.5,
+		'k_lambda': 0.5,  # 0.1 0.2 0.5 1 2 5 10 20 50
+		'local_infer_dense_size': 300,
+		'pool_size': 2,
+		'strides': 1,
+		'weight_pool_dense_size': 1,
+		'composi_hidden_size': 300,
+		'composi_dropout': 0.5,
+	},
+}
+
+
+# diim conf
+conf_params[10] = {
 	'lr': 0.0004,
 	'grad_clip': 10,
 	'optimizer': 'adam',

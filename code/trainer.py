@@ -15,7 +15,7 @@ from mxnet.gluon import nn, rnn
 
 from kim import get_kim_model
 from data_processer import load_data, map_to_index
-from kim_conf import conf_params
+from conf import conf_params
 import utils
 import logging
 from tqdm import tqdm
@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.DEBUG,
                 filemode='w')
 
 
-def train(params_index=0):
+def train(model_type='kim', params_index=0):
     print('start training')
     # loda params
     train_data_path = conf_params[params_index]['train_data_path']
@@ -56,7 +56,12 @@ def train(params_index=0):
     word_vec = utils.load_word_vec(word_vec_path)
 
     print('try to initialize model...')
-    net = get_kim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
+    if model_type == 'kim':
+        net = get_kim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
+        print('build kim model')
+    else:
+        net = get_diim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
+        print('build diim model')
     net.initialize(ctx=ctx)
     #print(net.collect_params())
 
