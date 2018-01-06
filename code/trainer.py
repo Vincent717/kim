@@ -14,6 +14,7 @@ from mxnet import gluon
 from mxnet.gluon import nn, rnn
 
 from kim import get_kim_model
+from diim import get_diim_model
 from data_processer import load_data, map_to_index
 from conf import conf_params
 import utils
@@ -46,22 +47,35 @@ def train(model_type='kim', params_index=0):
 
     # load data
     print('try to load data...')
-    train_data, i2w, w2i = load_data(train_data_path, ctx=ctx)
-    test_data = load_data(test_data_path, ctx=ctx, is_train=False)
-    test_data = map_to_index(test_data, w2i, ctx)
-    print('vocab size ', len(w2i))
-    train_data = utils.DataLoader(train_data, batch_size, ctx)
-    test_data = utils.DataLoader(test_data, batch_size, ctx)
-    print('data loaded!', len(train_data), len(test_data))
-    word_vec = utils.load_word_vec(word_vec_path)
-
-    print('try to initialize model...')
     if model_type == 'kim':
-        net = get_kim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
         print('build kim model')
-    else:
-        net = get_diim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
+        train_data, i2w, w2i, _, _ = load_data(train_data_path, ctx=ctx)
+        test_data = load_data(test_data_path, ctx=ctx, is_train=False)
+        test_data = map_to_index(test_data, w2i, ctx)
+        print('vocab size ', len(w2i))
+        train_data = utils.DataLoader(train_data, batch_size, ctx)
+        test_data = utils.DataLoader(test_data, batch_size, ctx)
+        print('data loaded!', len(train_data), len(test_data))
+        word_vec = utils.load_word_vec(word_vec_path)
+        print('try to initialize model...')
+
+        net = get_kim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
+
+    elif model_type == 'diim':
         print('build diim model')
+        train_data, i2w, w2i, i2c, c2i = load_data(train_data_path, need_char=True, need_syntatic=True, ctx=ctx)
+        test_data = load_data(test_data_path, ctx=ctx, is_train=False)
+        test_data = map_to_index(test_data, w2i, ctx)
+        print('vocab size ', len(w2i))
+        print('char size', len(c2i))
+        train_data = utils.DataLoader(train_data, batch_size, ctx)
+        test_data = utils.DataLoader(test_data, batch_size, ctx)
+        print('data loaded!', len(train_data), len(test_data))
+        word_vec = utils.load_word_vec(word_vec_path)
+        print('try to initialize model...')
+        net = get_diim_model(params, i2w=i2w, word_vec=word_vec, ctx=ctx)
+
+
     net.initialize(ctx=ctx)
     #print(net.collect_params())
 
@@ -97,7 +111,7 @@ def train(model_type='kim', params_index=0):
 
 
 def main(params_index):
-    train(params_index)
+    train('diim', params_index)
 
 def predictor(params_index):
     params = conf_params[params_index]['params']

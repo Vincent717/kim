@@ -17,6 +17,7 @@ universal_config = {
 	'UNK_threshold': 2,
 	'seq_length': 30,
 	'char_in_word_size': 8,
+	'shared_json_path': '../data/shared.jsonl',
 }
 
 
@@ -96,13 +97,16 @@ conf_params[10] = {
 	'batch_size': 32,
 	'dropout': 0.5,
 	'epoch': 300,
-	'train_data_path': '../data/snli_1.0/snli_1.0_train.jsonl',
-	'test_data_path': '../data/snli_1.0/snli_1.0_dev.jsonl',
+	'train_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
+	'test_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
 	'word_vec_path': '../data/glove.dic',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
 	'gpu': 0,
 	'params': {
 		'vocab_size': 1000,
+		'highway_dense_size': 300,
+		'highway_num': 2,
+
 		'embed_size': 300,
 		'encode_hidden_size': 300,
 		'encode_dropout': 0.5,

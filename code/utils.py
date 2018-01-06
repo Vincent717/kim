@@ -36,21 +36,21 @@ class DataLoader(object):
 
     def __iter__(self):
         data = self.dataset[:]
-        X = data[0]
+        X = data[0] # X is a tuple
         y = nd.array(data[1], ctx=self.ctx)
-        n = X.shape[0]
+        n = X[0].shape[0]
         if self.shuffle:
             idx = np.arange(n)
             np.random.shuffle(idx)
-            X = nd.array(X.asnumpy()[idx], ctx=self.ctx)
+            X = (nd.array(x_.asnumpy()[idx], ctx=self.ctx) for x_ in X)
             y = nd.array(y.asnumpy()[idx], ctx=self.ctx)
 
         for i in range(n//self.batch_size):
-            yield (X[i*self.batch_size:(i+1)*self.batch_size],
+            yield ((x_[i*self.batch_size:(i+1)*self.batch_size] for x_ in X),
                    y[i*self.batch_size:(i+1)*self.batch_size])
 
     def __len__(self):
-        return len(self.dataset[0])//self.batch_size
+        return len(self.dataset[0][0])//self.batch_size
 
 def load_data_fashion_mnist(batch_size, resize=None, root="~/.mxnet/datasets/fashion-mnist"):
     """download the fashion mnist dataest and then load into memory"""

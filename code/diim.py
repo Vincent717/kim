@@ -12,6 +12,7 @@ from mxnet import nd, init
 from mxnet import gluon
 from mxnet.gluon import nn, rnn
 from utils import find_wordnet_rel, try_gpu
+from nn_utils import HighwayLayer, SelfAttentionLayer
 import random
 
 
@@ -65,7 +66,6 @@ def reshape_batch_dot(x, y):
 
 
 
-
 class InferenceComposition(nn.Block):
     def __init__(self, params, **kwargs):
         super(InferenceComposition, self).__init__(**kwargs)
@@ -104,17 +104,20 @@ class InferenceComposition(nn.Block):
 
 class Diim(nn.Block):
     def __init__(self, params, ctx=_ctx, i2w='', word_vec='', verbose=False, **kwargs):
-        super(Kim, self).__init__(**kwargs)
+        super(Diim, self).__init__(**kwargs)
         self.verbose = verbose
         vocab_size = len(i2w) if i2w else params['vocab_size'] 
-        embed_size = len(word_vec['.'].split()) if word_vec else params['embed_size']
-        encode_hidden_size = params['encode_hidden_size']
-        encode_dropout  = params['encode_dropout']
-        k_lambda = params['k_lambda']
-        local_infer_dense_size = params['local_infer_dense_size']
-        pool_size = params['pool_size']
-        strides = params['strides']
-        weight_pool_dense_size = params['weight_pool_dense_size']
+        highway_dense_size = params['highway_dense_size']
+        highway_num = params['highway_num']
+        # embed_size = len(word_vec['.'].split()) if word_vec else params['embed_size']
+        # encode_hidden_size = params['encode_hidden_size']
+        # encode_dropout  = params['encode_dropout']
+        # k_lambda = params['k_lambda']
+        # local_infer_dense_size = params['local_infer_dense_size']
+        # pool_size = params['pool_size']
+        # strides = params['strides']
+        # weight_pool_dense_size = params['weight_pool_dense_size']
+
 
         with self.name_scope():
             # first block: (concat) embedding
@@ -128,23 +131,23 @@ class Diim(nn.Block):
             self.char_embedding_layer_b = nn.Sequential()
             self.char_embedding_layer_a.add(nn.Embedding(char_vocab_size, embed_size))  # initializer?
             self.char_embedding_layer_b.add(nn.Embedding(char_vocab_size, embed_size))
-            char_feature_conv = nn.Conv1D(channel, kernel_size) # filter_size, height
+            char_feature_conv = nn.Sequential()
+            char_feature_conv.add(Conv1D(channel, kernel_size)) # filter_size, height
+            char_feature_conv.add(nn.Maxpool1D)
             self.char_embedding_layer_a.add(char_feature_conv)
             self.char_embedding_layer_b.add(char_feature_conv)
-            self.char_embedding_layer_a.add(nn.Maxpool1D)
-            self.char_embedding_layer_b.add(nn.Maxpool1D)
-                # syntatic imformation
-                
 
-            self.input_encoding_layer_a.add(rnn.LSTM(hidden_size=encode_hidden_size,
-                dropout=encode_dropout, bidirectional=True))
-            self.input_encoding_layer_b.add(rnn.LSTM(hidden_size=encode_hidden_size,
-                dropout=encode_dropout, bidirectional=True))
+            # second block: encoding layer
+                # highway network
+            self.highway_layer = nn.Sequential()
+            for _ in range(highway_num):
+                self.highway_layer.add(HighwayLayer(highway_dense_size))
+                # self-attention (do not share, but should penalize)
+            self.self_attention_layer_a = SelfAttentionLayer(need_fuse_gate=True)
+            self.self_attention_layer_b = SelfAttentionLayer(need_fuse_gate=True)
 
-            # second block: knowledge-enriched co-attention (a function used in forward)
-            self.co_attention = get_co_attention(k_lambda, ctx)
 
-            # third block: knowledge-enriched local inference collection
+            # third block: Interaction layer
             self.local_inference_a = nn.Dense(local_infer_dense_size, activation='relu', flatten=False)
             self.local_inference_b = nn.Dense(local_infer_dense_size, activation='relu', flatten=False)
 
@@ -153,8 +156,10 @@ class Diim(nn.Block):
 
     def forward(self, data):
         data_, r = data
-        a, b = data_[:,0], data_[:,1]   # (batch_size, seq_length)
+        ab, ab_char, ab_pos, ab_exact = data_[:,0], data_[:,1], data_[:,2], data_[:,3]   # (batch_size, seq_length)
             # first step: input encoding
+        a, b = ab[:,0], ab[:,1]
+
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)
             
