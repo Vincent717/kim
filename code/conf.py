@@ -106,6 +106,7 @@ conf_params[10] = {
 		'vocab_size': 1000,
 		'highway_dense_size': 300,
 		'highway_num': 2,
+		'keep_rate': 0.5,  # dropout
 
 		'embed_size': 300,
 		'encode_hidden_size': 300,

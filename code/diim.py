@@ -109,6 +109,7 @@ class Diim(nn.Block):
         vocab_size = len(i2w) if i2w else params['vocab_size'] 
         highway_dense_size = params['highway_dense_size']
         highway_num = params['highway_num']
+        keep_rate = params['keep_rate']
         # embed_size = len(word_vec['.'].split()) if word_vec else params['embed_size']
         # encode_hidden_size = params['encode_hidden_size']
         # encode_dropout  = params['encode_dropout']
@@ -121,11 +122,15 @@ class Diim(nn.Block):
 
         with self.name_scope():
             # first block: (concat) embedding
-                # word embedding
+                # word embedding (with dropout)
+            self.word_embedding_layer_a = nn.Sequential()
             self.word_embedding_layer_a.add(nn.Embedding(vocab_size, embed_size, 
                 weight_initializer=MyEmbedInit(i2w,word_vec,vocab_size,embed_size,ctx)))  # should initialize with pre-trained word embedding
+            self.word_embedding_layer_a.add(nn.Dropout(keep_rate))
+            self.word_embedding_layer_b = nn.Sequential()
             self.word_embedding_layer_b.add(nn.Embedding(vocab_size, embed_size, 
                 weight_initializer=MyEmbedInit(i2w,word_vec,vocab_size,embed_size,ctx)))
+            self.word_embedding_layer_b.add(nn.Dropout(keep_rate))
                 # character embedding
             self.char_embedding_layer_a = nn.Sequential()
             self.char_embedding_layer_b = nn.Sequential()
@@ -146,46 +151,44 @@ class Diim(nn.Block):
             self.self_attention_layer_a = SelfAttentionLayer(need_fuse_gate=True)
             self.self_attention_layer_b = SelfAttentionLayer(need_fuse_gate=True)
 
-
             # third block: Interaction layer
-            self.local_inference_a = nn.Dense(local_infer_dense_size, activation='relu', flatten=False)
-            self.local_inference_b = nn.Dense(local_infer_dense_size, activation='relu', flatten=False)
+            self.interaction_layer = cross_elem_wise_mp(keep_rate=keep_rate)
 
-            #fourth block: knowledge-enriched inference composition
-            self.inference_composition = InferenceComposition(params)
+            #fourth block: feature extraction layer
+            self.feature_extraction_layer = DenseNet(params)
+
+            # fifth block: output layer
+            self.output_layer = nn.Dense(3, activation='tanh')
 
     def forward(self, data):
         data_, r = data
         ab, ab_char, ab_pos, ab_exact = data_[:,0], data_[:,1], data_[:,2], data_[:,3]   # (batch_size, seq_length)
-            # first step: input encoding
-        a, b = ab[:,0], ab[:,1]
+        
+        # step 1: input embedding
+        p_word = self.word_embedding_layer_a(ab[:,0])
+        h_word = self.word_embedding_layer_b(ab[:,1])
+        p_char = self.char_embedding_layer_a(ab_char[:,0]) 
+        h_char = self.char_embedding_layer_b(ab_char[:,1])
+        p_pos, h_pos = ab_pos[:,0], ab_pos[:,1]
+        p_exact, h_exact = ab_exact[:,0], ab_exact[:,1]
+        p = nd.concat(p_word, p_char, p_pos, p_exact, dim=3)
+        h = nd.concat(h_word, h_char, h_pos, h_exact, dim=3)
+        
+        # step 2: input encoding
+        p_hw = self.highway_layer(p)
+        h_hw = self.highway_layer(h)
+        p_enc, p_self_attend = self.self_attention_layer_a(p_hw)
+        h_enc, h_self_attend = self.self_attention_layer_b(h_hw)
 
-        as_ = self.input_encoding_layer_a(a)
-        bs_ = self.input_encoding_layer_b(b)
-            
-            # second step: co-attention, alpha_r and beta_r
-            # alpha_r.shape = (batch_size, seq_len, 5) 
-        ac, bc, alpha, beta = self.co_attention(as_, bs_, r)
-        alpha_r = reshape_batch_dot(alpha, r)
-        beta_r = reshape_batch_dot(beta, r)
-        # alpha_r = nd.batch_dot(r[0], alpha[0].reshape(tuple(list(alpha.shape)[1:] + [1])), transpose_a=True)
-        # beta_r = nd.batch_dot(r[0], beta[0].reshape(tuple(list(beta.shape)[1:] + [1])), transpose_a=True)
-        # alpha_r = alpha_r.reshape(tuple([1] + list(alpha_r.shape)[:-1]))
-        # beta_r = beta_r.reshape(tuple([1] + list(beta_r.shape)[:-1]))
-        # for i in range(1, r.shape[0]):
-        #     tmp = nd.batch_dot(r[i], alpha[i].reshape(tuple(list(alpha.shape)[1:] + [1])), transpose_a=True)
-        #     tmp = tmp.reshape(tuple([1] + list(tmp.shape)[:-1]))
-        #     alpha_r = nd.concat(alpha_r, tmp, dim=0)
-        # for i in range(1, r.shape[0]):
-        #     tmp = nd.batch_dot(r[i], beta[i].reshape(tuple(list(beta.shape)[1:] + [1])), transpose_a=True)
-        #     tmp = tmp.reshape(tuple([1] + list(tmp.shape)[:-1]))
-        #     beta_r = nd.concat(beta_r, tmp, dim=0)
+        # step 3: interaction
+        I = self.interaction_layer(p_enc, h_enc)
 
-            # third step: local inference
-            # am.shape: (batch_size, seq_len, hidden_size)
-        am = self.local_inference_a(nd.concat(as_, ac, as_-ac, as_*ac, alpha_r, dim=2))
-        bm = self.local_inference_b(nd.concat(bs_, bc, bs_-bc, bs_*bc, beta_r, dim=2))
-        out = self.inference_composition(am, bm, alpha_r, beta_r)
+        # step 4: feature extraction
+        feature = self.feature_extraction_layer(I)
+
+        # step 5: final mlp
+        out = self.output_layer(feature)
+
         return out
 
 
@@ -215,6 +218,24 @@ class MyEmbedInit(init.Initializer):
             return nd.array(out, ctx=self.ctx)
         else:
             return nd.random.uniform(shape=[self.vocab_size, self.embed_size], ctx=self.ctx)
+
+
+def cross_elem_wise_mp(keep_rate=0.5):
+    """
+    p, h : (32, 40, 300)
+    output: (32, 40, 40, 300)
+    """
+    def _cross_element_wise_mp(p, h):
+        plen = p.shape[1]
+        plen = h.shape[1]
+        # order is important
+        p_expand = nd.tile(nd.expand_dims(p, 2), [1,1,plen,1]) # (batch_size, seq_len, seq_len, embed_dim)
+        h_expand = nd.tile(nd.expand_dims(p, 1), [1,hlen,1,1]) # (32, 40, 40, 300)
+        out = p_expand * h_expand
+        if interact_dropout != 1:
+            out = nn.Dropout(keep_rate)(out)
+        return out
+    return _cross_element_wise_mp
 
 def get_diim_model(params, **kwargs):
     return Diim(params, **kwargs)
