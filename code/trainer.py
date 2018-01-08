@@ -25,7 +25,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.DEBUG,
                 format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                 datefmt='%a, %d %b %Y %H:%M:%S',
-                filename='kim_train_%s.log' % datetime.now().strftime('%y%m%d_%H%M'),
+                filename='kim_train.log',# % datetime.now().strftime('%y%m%d_%H%M'),
                 filemode='w')
 
 
@@ -50,6 +50,7 @@ def train(model_type='kim', params_index=0):
     if model_type == 'kim':
         print('build kim model')
         train_data, i2w, w2i, _, _ = load_data(train_data_path, ctx=ctx)
+        print(i2w.context, w2i.context, 3232)
         test_data = load_data(test_data_path, ctx=ctx, is_train=False)
         test_data = map_to_index(test_data, w2i, ctx)
         print('vocab size ', len(w2i))
@@ -87,6 +88,7 @@ def train(model_type='kim', params_index=0):
         train_loss = 0.
         train_acc = 0.
         for data, label in tqdm(train_data):  # (32,2,20), (32,)
+            data = list(data)
             word_sequences = utils.get_word_sequences(data, i2w)
             r = utils.find_wordnet_rel(word_sequences, ctx)
             #r= nd.ones([32, 30, 30, 5],ctx=ctx)
@@ -111,7 +113,7 @@ def train(model_type='kim', params_index=0):
 
 
 def main(params_index):
-    train('diim', params_index)
+    train('kim', params_index)
 
 def predictor(params_index):
     params = conf_params[params_index]['params']

@@ -224,9 +224,9 @@ def find_wordnet_rel(word_seqs, ctx=_ctx):  #(batch_size, 2, seq_length)
 
 def get_word_sequences(data, i2w):  #(batch_size, 2, seq_length)
     out = []
-    for doc in data:
+    for doc in data[0]:
         stn_out = []
-        for s in doc:
+        for s in doc:    # doc is a tuple
             stn_out.append([i2w[i.asscalar()] for i in s])
         out.append(stn_out)
     return out

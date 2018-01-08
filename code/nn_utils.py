@@ -66,3 +66,67 @@ class SelfAttentionLayer(nn.Block):
 
         return p_itrAtt, self_attend
 
+
+
+class DenseBlock(nn.Block):
+    def __init__(self, layers, growth_rate, **kwargs):
+        super(DenseBlock, self).__init__(**kwargs)
+        self.net = nn.Sequential()
+        for i in range(layers):
+            self.net.add(self.conv_block(growth_rate))
+
+    def conv_block(self, channels):
+        out = nn.Sequential()
+        out.add(
+            nn.BatchNorm(),
+            nn.Activation('relu'),
+            nn.Conv2D(channels, kernel_size=3, padding=1)
+        )
+        return out
+
+    def forward(self, x):
+        for layer in self.net:
+            out = layer(x)
+            x = nd.concat(x, out, dim=1)
+        return x
+
+
+def transition_block(channels):
+    out = nn.Sequential()
+    out.add(
+        nn.BatchNorm(),
+        nn.Activation('relu'),
+        nn.Conv2D(channels, kernel_size=1),
+        nn.AvgPool2D(pool_size=2, strides=2)
+    )
+    return out
+
+
+def dense_net():
+    net = nn.Sequential()
+    # add name_scope on the outermost Sequential
+    with net.name_scope():
+        # first block
+        net.add(
+            nn.Conv2D(init_channels, kernel_size=7,
+                      strides=2, padding=3),
+            nn.BatchNorm(),
+            nn.Activation('relu'),
+            nn.MaxPool2D(pool_size=3, strides=2, padding=1)
+        )
+        # dense blocks
+        channels = init_channels
+        for i, layers in enumerate(block_layers):
+            net.add(DenseBlock(layers, growth_rate))
+            channels += layers * growth_rate
+            if i != len(block_layers)-1:
+                net.add(transition_block(channels//2))
+        # last block
+        net.add(
+            nn.BatchNorm(),
+            nn.Activation('relu'),
+            nn.AvgPool2D(pool_size=1),
+            nn.Flatten(),
+            nn.Dense(num_classes)
+        )
+    return net

@@ -149,7 +149,9 @@ class Kim(nn.Block):
 
     def forward(self, data):
         data_, r = data
+        data_ = data_[0]    # 0 means word information
         a, b = data_[:,0], data_[:,1]   # (batch_size, seq_length)
+        #print(r, len(r), 88888)
             # first step: input encoding
         as_ = self.input_encoding_layer_a(a)
         bs_ = self.input_encoding_layer_b(b)

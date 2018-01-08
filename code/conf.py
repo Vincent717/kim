@@ -15,7 +15,7 @@ universal_config = dict()
 universal_config = {
 	'embedding_replacing_rare_word_with_UNK': True,
 	'UNK_threshold': 2,
-	'seq_length': 30,
+	'seq_length': 32,
 	'char_in_word_size': 8,
 	'shared_json_path': '../data/shared.jsonl',
 }
@@ -41,11 +41,11 @@ conf_params[0] = {
 	'batch_size': 32,
 	'dropout': 0.5,
 	'epoch': 100,
-	'train_data_path': '../data/snli_1.0/snli_1.0_5w_train.jsonl',
+	'train_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
 	'test_data_path': '../data/snli_1.0/snli_1.0_fake_dev.jsonl',
 	'word_vec_path': '../data/glove.dic',
 	'save_model_path': '../model/kim_1_%s.params' % datetime.now().strftime('%y%m%d_%H%M'),
-	'gpu': 1,
+	'gpu': 0,
 	'params': {
 		'vocab_size': 6525,
 		'embed_size': 300,
@@ -91,10 +91,10 @@ conf_params[1] = {
 
 # diim conf
 conf_params[10] = {
-	'lr': 0.0004,
+	'lr': 0.5,
 	'grad_clip': 10,
 	'optimizer': 'adam',
-	'batch_size': 32,
+	'batch_size': 70,
 	'dropout': 0.5,
 	'epoch': 300,
 	'train_data_path': '../data/snli_1.0/snli_1.0_fake_train.jsonl',
@@ -107,6 +107,8 @@ conf_params[10] = {
 		'highway_dense_size': 300,
 		'highway_num': 2,
 		'keep_rate': 0.5,  # dropout
+		'dense_layer_num': 8,
+		'growth_rate': 20,
 
 		'embed_size': 300,
 		'encode_hidden_size': 300,
